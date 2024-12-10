@@ -1,54 +1,33 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Text, TouchableOpacity, Dimensions } from "react-native";
 import GameContainer from "../components/GameContainer";
-import {
-  updateFirebaseMovement,
-  updateFirebaseScore,
-  updateFirebaseLives,
-} from "../utils/movementUtils";
+import { updateFirebaseSingleMovement, updateFirebaseScore } from "../utils/movementUtils";
 import GameOverModal from "../components/GameOverModal";
 import useSinglePlayerGameSync from "../hooks/useSinglePlayerGameSync";
-
-const LivesDisplay = ({ lives }) => {
-  return (
-    <View style={styles.livesContainer}>
-      {[1, 2, 3].map((index) => (
-        <View
-          key={index}
-          style={[
-            styles.lifeCircle,
-            { backgroundColor: index <= lives ? "green" : "gray" },
-          ]}
-        />
-      ))}
-    </View>
-  );
-};
 
 const SinglePlayerScreen = () => {
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
-  const [movement, setMovement] = useState(null);
-  const gameId = "gameId1";
+  const [movement, setMovement] = useState(null); // "left" or "right"
+  const gameId = "gameId1"; // Example Game ID
   const gameData = useSinglePlayerGameSync(gameId);
   const [fallingObjects, setFallingObjects] = useState([]);
-  const [scoredObjects, setScoredObjects] = useState(new Set());
+  const [scoredObjects, setScoredObjects] = useState(new Set()); // Track scored objects
 
   const PLAYER_WIDTH = 30;
   const PLAYER_HEIGHT = 30;
-  const FALLING_OBJECT_WIDTH = 50;
-  const FALLING_OBJECT_HEIGHT = 50;
+  const FALLING_OBJECT_WIDTH = 50;  // Increased width of falling object
+  const FALLING_OBJECT_HEIGHT = 50; // Increased height of falling object
 
-  const screenWidth = Dimensions.get("window").width;
-  const gameAreaWidth = 350;
-  const gameAreaHeight = 500;
+  const screenWidth = Dimensions.get("window").width; // Get screen width
+  const gameAreaWidth = 350; // Width of the game area
+  const gameAreaHeight = 500; // Height of the game area (for proper collision check)
 
-  const playerSpeed = 5;
-  const groundLevel = gameAreaHeight - PLAYER_HEIGHT;
+  const playerSpeed = 5; // Speed at which the player moves
+  const groundLevel = gameAreaHeight - PLAYER_HEIGHT; // Y position where the player is located at the bottom
 
-  const playerPositionRef = useRef(gameAreaWidth / 2 - PLAYER_WIDTH / 2);
-  const groundHitRef = useRef(false);
+  const playerPositionRef = useRef(gameAreaWidth / 2 - PLAYER_WIDTH / 2); // Player starts at the center
+  const groundHitRef = useRef(false); // Prevent multiple triggers for hitting the ground
 
   const debounce = (func, delay) => {
     let timeout;
@@ -59,56 +38,40 @@ const SinglePlayerScreen = () => {
   };
 
   const debouncedUpdateScore = debounce(updateFirebaseScore, 300);
-  const debouncedUpdateLives = debounce(updateFirebaseLives, 300);
 
-  const getHit = () => {
-    setLives((prevLives) => {
-      const newLives = prevLives - 1;
-      debouncedUpdateLives(gameId, newLives);
-      if (newLives <= 0) {
-        setGameOver(true);
-      }
-      return newLives;
-    });
-  };
-
-  useEffect(() => {
-    if (gameData.lives !== undefined) {
-      setLives(gameData.lives);
-    }
-  }, [gameData.lives]);
-
+  // Move falling objects every 100ms (fall speed controlled by score)
   useEffect(() => {
     const interval = setInterval(() => {
       if (!gameOver) {
-        const fallSpeed = score >= 2000 ? 15 : 10;
+        const fallSpeed = score >= 2000 ? 15 : 10; // Faster fall speed after score reaches 20
         setFallingObjects((prevObjects) =>
           prevObjects
             .map((obj) => ({
               ...obj,
-              positionY: obj.positionY + fallSpeed,
+              positionY: obj.positionY + fallSpeed, // Use variable fall speed
             }))
-            .filter((obj) => obj.positionY < gameAreaHeight)
+            .filter((obj) => obj.positionY < gameAreaHeight) // Make sure objects stay within the game area
         );
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [gameOver, score]);
+  }, [gameOver, score]); // Depend on score to adjust fall speed dynamically
 
+  // Add new falling objects every second, two objects at a time
   useEffect(() => {
     const interval = setInterval(() => {
       if (!gameOver) {
         const newObjects = [
           {
             id: Math.random().toString(),
-            positionX: Math.random() * (gameAreaWidth - FALLING_OBJECT_WIDTH),
-            positionY: 0,
+            positionX: Math.random() * (gameAreaWidth - FALLING_OBJECT_WIDTH), // Random horizontal position for first object
+            positionY: 0, // Start at the top
           },
           {
             id: Math.random().toString(),
-            positionX: Math.random() * (gameAreaWidth - FALLING_OBJECT_WIDTH),
-            positionY: 0,
+            positionX: Math.random() * (gameAreaWidth - FALLING_OBJECT_WIDTH), // Random horizontal position for second object
+            positionY: 0, // Start at the top
           },
         ];
 
@@ -119,27 +82,31 @@ const SinglePlayerScreen = () => {
     return () => clearInterval(interval);
   }, [gameOver]);
 
+  // Detect when objects hit the ground, update score, and check for collisions with the player
   useEffect(() => {
     if (!groundHitRef.current) {
       const objectsAtGround = fallingObjects.filter(
-        (obj) => obj.positionY + FALLING_OBJECT_HEIGHT >= groundLevel && !scoredObjects.has(obj.id)
+        (obj) => obj.positionY + FALLING_OBJECT_HEIGHT >= groundLevel && !scoredObjects.has(obj.id) // Only score objects that haven't been scored yet
       );
 
       if (objectsAtGround.length > 0) {
-        groundHitRef.current = true;
+        groundHitRef.current = true; // Prevent re-triggering
 
+        // Update score for objects that hit the ground
         setScore((prevScore) => {
           const newScore = prevScore + objectsAtGround.length * 50;
-          debouncedUpdateScore(gameId, newScore);
+          debouncedUpdateScore(gameId, newScore); // Sync the new score to Firebase
           return newScore;
         });
 
+        // Add scored objects to the scoredObjects set
         setScoredObjects((prevSet) => {
-          const newSet = new Set(prevSet);
-          objectsAtGround.forEach((obj) => newSet.add(obj.id));
-          return newSet;
+          const newScoredSet = new Set(prevSet);
+          objectsAtGround.forEach((obj) => newScoredSet.add(obj.id));
+          return newScoredSet;
         });
 
+        // Check for collisions with the player
         objectsAtGround.forEach((obj) => {
           const playerLeft = playerPositionRef.current;
           const playerRight = playerLeft + PLAYER_WIDTH;
@@ -151,21 +118,23 @@ const SinglePlayerScreen = () => {
           const objectTop = obj.positionY;
           const objectBottom = objectTop + FALLING_OBJECT_HEIGHT;
 
+          // Check for collision with enlarged object hitbox
           if (
             playerLeft < objectRight &&
             playerRight > objectLeft &&
             playerTop < objectBottom &&
             playerBottom > objectTop
           ) {
-            getHit();
+            setGameOver(true); // End the game if the player is hit
           }
         });
 
+        // Remove obstacles that have hit the ground or gone past the game area
         setFallingObjects((prevObjects) =>
           prevObjects.filter((obj) => obj.positionY + FALLING_OBJECT_HEIGHT < gameAreaHeight)
         );
 
-        setTimeout(() => (groundHitRef.current = false), 50);
+        setTimeout(() => (groundHitRef.current = false), 50); // Reset after a short delay
       }
     }
   }, [fallingObjects, scoredObjects]);
@@ -173,44 +142,45 @@ const SinglePlayerScreen = () => {
   const onRestart = () => {
     setGameOver(false);
     setScore(0);
-    setLives(3);
-    updateFirebaseLives(gameId, 3);
-    setFallingObjects([]);
-    setScoredObjects(new Set());
-    playerPositionRef.current = gameAreaWidth / 2 - PLAYER_WIDTH / 2;
+    setFallingObjects([]); // Clear falling objects
+    setScoredObjects(new Set()); // Reset scored objects
+    playerPositionRef.current = gameAreaWidth / 2 - PLAYER_WIDTH / 2; // Reset to center
   };
-
+  
+  // Handle movement changes (left or right)
   const onButtonPress = (direction) => {
     setMovement(direction);
-    updateFirebaseMovement(gameId, direction);
+    updateFirebaseSingleMovement(gameId, direction, score); // Update movement in Firebase
   };
 
+  // Continuous player movement while holding button
   useEffect(() => {
     if (movement) {
       const moveInterval = setInterval(() => {
         movePlayer(movement);
-      }, 1000 / 60);
+      }, 1000 / 60); // 60 FPS
 
       return () => clearInterval(moveInterval);
     }
   }, [movement]);
 
+  // Single tap movement
   const onTapMovement = (direction) => {
     movePlayer(direction);
   };
 
   const movePlayer = (direction) => {
     if (direction === "left") {
-      playerPositionRef.current = Math.max(playerPositionRef.current - playerSpeed, 0);
+      playerPositionRef.current = Math.max(playerPositionRef.current - playerSpeed, 0); // Prevent going out of bounds
     } else if (direction === "right") {
-      playerPositionRef.current = Math.min(playerPositionRef.current + playerSpeed, gameAreaWidth - PLAYER_WIDTH);
+      playerPositionRef.current = Math.min(playerPositionRef.current + playerSpeed, gameAreaWidth - PLAYER_WIDTH); // Prevent going out of bounds
     }
   };
 
   const gameArea = (
     <View style={styles.gameArea}>
       <View
-        style={[styles.player, { left: playerPositionRef.current }]}
+        style={[styles.player, { left: playerPositionRef.current }]} // Set dynamic position from ref
       >
         <Text style={styles.playerText}>P</Text>
       </View>
@@ -218,8 +188,7 @@ const SinglePlayerScreen = () => {
       {fallingObjects.map((obj) => (
         <View
           key={obj.id}
-          style={[styles.fallingObject, { left: obj.positionX, top: obj.positionY }]}
-        />
+          style={[styles.fallingObject, { left: obj.positionX, top: obj.positionY }]}/>
       ))}
     </View>
   );
@@ -233,9 +202,8 @@ const SinglePlayerScreen = () => {
         gameArea={gameArea}
       />
 
-      <View style={styles.scoreContainer}>
+      <View style={[styles.scoreContainer, { left: (screenWidth - 200) / 2 }]}>
         <Text style={styles.scoreText}>Score: {score}</Text>
-        <LivesDisplay lives={lives} />
       </View>
 
       <View style={styles.controls}>
@@ -256,7 +224,7 @@ const SinglePlayerScreen = () => {
           <Text style={styles.controlButtonText}>Right</Text>
         </TouchableOpacity>
       </View>
-      
+
       <GameOverModal gameOver={gameOver} onRestart={onRestart} />
     </View>
   );
@@ -294,23 +262,9 @@ const styles = StyleSheet.create({
   },
   fallingObject: {
     position: "absolute",
-    width: 50,
-    height: 50,
+    width: 50,  // Increased size
+    height: 50, // Increased size
     backgroundColor: "red",
-  },
-  livesContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    position: "absolute",
-    top: 50,
-    zIndex: 1,
-    marginLeft: 10,
-  },
-  lifeCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginHorizontal: 5,
   },
   controls: {
     flexDirection: "row",
@@ -320,13 +274,12 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     width: 100,
-    height: 50,
+    height: 40,
     padding: 10,
     backgroundColor: "#555",
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 5,
-    marginHorizontal: 10,
   },
   controlButtonText: {
     color: "#fff",
@@ -345,3 +298,4 @@ const styles = StyleSheet.create({
 });
 
 export default SinglePlayerScreen;
+

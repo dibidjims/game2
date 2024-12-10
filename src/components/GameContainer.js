@@ -10,17 +10,13 @@ const GameContainer = ({
   return (
     <View style={styles.gameContainer}>
       {gameArea} {/* The game area passed as a prop */}
-      <Text style={styles.scoreText}>High Score: {highScore}</Text>
-      <Text style={styles.gameOverText}>{gameOver ? "Game Over!" : ""}</Text>
-      <Text style={styles.restartText} onPress={onRestart}>
-        {gameOver ? "Tap to Restart" : ""}
-      </Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   gameContainer: {
+    marginTop: 50,
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -32,6 +28,7 @@ const styles = StyleSheet.create({
   scoreText: {
     color: "#fff",
     fontSize: 20,
+    alignContent: "center",
   },
   gameOverText: {
     color: "#ff0000",

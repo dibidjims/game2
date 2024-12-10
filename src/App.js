@@ -27,9 +27,9 @@ const App = () => {
             {renderHomeScreen}
           </Stack.Screen>
         ) : gameMode === "single" ? (
-          <Stack.Screen name="SinglePlayer" component={SinglePlayerScreen} />
+          <Stack.Screen name="SinglePlayer" component={SinglePlayerScreen} options={{ headerShown: false }}/>
         ) : (
-          <Stack.Screen name="DuelMode" component={DuelModeScreen} />
+          <Stack.Screen />
         )}
       </Stack.Navigator>
     </NavigationContainer>

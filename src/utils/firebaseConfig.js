@@ -1,6 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
+import { getFirestore } from "firebase/firestore"; // Import Firestore
 
+// Your Firebase configuration object
 const firebaseConfig = {
   apiKey: "AIzaSyBjpyd7P5RJjQJkya-uNGQ_KvaPXgVs_HU",
   authDomain: "game2group3.firebaseapp.com",
@@ -12,7 +14,13 @@ const firebaseConfig = {
   measurementId: "G-3J1K2SDV43"
 };
 
+// Initialize Firebase app
 const app = initializeApp(firebaseConfig);
+
+// Initialize Realtime Database
 const database = getDatabase(app);
 
-export { database };
+// Initialize Firestore
+const firestore = getFirestore(app);
+
+export { database, firestore };
