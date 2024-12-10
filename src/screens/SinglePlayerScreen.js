@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Text, TouchableOpacity, Dimensions } from "react-native";
+import { useNavigation } from "@react-navigation/native"; // Import useNavigation for navigation
 import GameContainer from "../components/GameContainer";
 import {
   updateFirebaseMovement,
@@ -7,6 +8,7 @@ import {
   updateFirebaseLives,
 } from "../utils/movementUtils";
 import GameOverModal from "../components/GameOverModal";
+import PauseModal from "../components/PauseModal";
 import useSinglePlayerGameSync from "../hooks/useSinglePlayerGameSync";
 
 const LivesDisplay = ({ lives }) => {
@@ -26,7 +28,9 @@ const LivesDisplay = ({ lives }) => {
 };
 
 const SinglePlayerScreen = () => {
+  const navigation = useNavigation(); // Use useNavigation hook for navigation
   const [gameOver, setGameOver] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [movement, setMovement] = useState(null);
@@ -80,7 +84,7 @@ const SinglePlayerScreen = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!gameOver) {
+      if (!gameOver && !paused) {
         const fallSpeed = score >= 2000 ? 15 : 10;
         setFallingObjects((prevObjects) =>
           prevObjects
@@ -94,11 +98,11 @@ const SinglePlayerScreen = () => {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [gameOver, score]);
+  }, [gameOver, paused, score]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!gameOver) {
+      if (!gameOver && !paused) {
         const newObjects = [
           {
             id: Math.random().toString(),
@@ -117,7 +121,7 @@ const SinglePlayerScreen = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gameOver]);
+  }, [gameOver, paused]);
 
   useEffect(() => {
     if (!groundHitRef.current) {
@@ -172,6 +176,7 @@ const SinglePlayerScreen = () => {
 
   const onRestart = () => {
     setGameOver(false);
+    setPaused(false);
     setScore(0);
     setLives(3);
     updateFirebaseLives(gameId, 3);
@@ -207,12 +212,19 @@ const SinglePlayerScreen = () => {
     }
   };
 
+  const pauseGame = () => {
+    setPaused(true);
+  };
+
+  const resumeGame = () => {
+    setPaused(false);
+  };
+
   const gameArea = (
     <View style={styles.gameArea}>
       <View
-        style={[styles.player, { left: playerPositionRef.current }]}
-      >
-        <Text style={styles.playerText}>P</Text>
+        style={[styles.player, { left: playerPositionRef.current }]}>
+        <Text style={styles.playerText}>U</Text>
       </View>
 
       {fallingObjects.map((obj) => (
@@ -233,8 +245,10 @@ const SinglePlayerScreen = () => {
         gameArea={gameArea}
       />
 
-      <View style={styles.scoreContainer}>
-        <Text style={styles.scoreText}>Score: {score}</Text>
+      <View style={styles.statsContainer}>
+        <View style={styles.scoreContainer}>
+          <Text style={styles.scoreText}>Score: {score}</Text>
+        </View>
         <LivesDisplay lives={lives} />
       </View>
 
@@ -247,6 +261,9 @@ const SinglePlayerScreen = () => {
         >
           <Text style={styles.controlButtonText}>Left</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.controlButton} onPress={pauseGame}>
+          <Text style={styles.controlButtonText}>Pause</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.controlButton}
           onPressIn={() => onButtonPress("right")}
@@ -256,8 +273,17 @@ const SinglePlayerScreen = () => {
           <Text style={styles.controlButtonText}>Right</Text>
         </TouchableOpacity>
       </View>
-      
-      <GameOverModal gameOver={gameOver} onRestart={onRestart} />
+
+      <GameOverModal 
+        gameOver={gameOver} 
+        onRestart={onRestart} />
+
+      <PauseModal
+        visible={paused}
+        onResume={resumeGame}
+        onRestart={onRestart}
+        onMainMenu={() => navigation.navigate("MainScreen")} // Fixed navigation to go to MainScreen
+      />
     </View>
   );
 };
@@ -298,13 +324,19 @@ const styles = StyleSheet.create({
     height: 50,
     backgroundColor: "red",
   },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    position: "absolute",
+    top: 50,
+    zIndex: 1,
+  },
   livesContainer: {
     flexDirection: "row",
     justifyContent: "center",
     position: "absolute",
     top: 50,
     zIndex: 1,
-    marginLeft: 10,
   },
   lifeCircle: {
     width: 20,
@@ -334,7 +366,6 @@ const styles = StyleSheet.create({
   },
   scoreContainer: {
     position: "absolute",
-    top: 10,
     zIndex: 1,
   },
   scoreText: {
